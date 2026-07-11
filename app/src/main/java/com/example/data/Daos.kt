@@ -119,3 +119,109 @@ interface JournalDao {
     @Delete
     suspend fun deleteJournal(journal: DailyJournal)
 }
+
+@Dao
+interface TvSeriesDao {
+    @Query("SELECT * FROM tv_series WHERE isDecoy = :isDecoy ORDER BY id DESC")
+    fun getTvSeries(isDecoy: Boolean): Flow<List<TvSeries>>
+
+    @Query("SELECT * FROM tv_series WHERE id = :id")
+    fun getTvSeriesById(id: Long): Flow<TvSeries?>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTvSeries(tvSeries: TvSeries): Long
+
+    @Update
+    suspend fun updateTvSeries(tvSeries: TvSeries)
+
+    @Delete
+    suspend fun deleteTvSeries(tvSeries: TvSeries)
+}
+
+@Dao
+interface StudyDao {
+    @Query("SELECT * FROM study_subjects WHERE isDecoy = :isDecoy ORDER BY name ASC")
+    fun getSubjects(isDecoy: Boolean): Flow<List<StudySubject>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSubject(subject: StudySubject): Long
+
+    @Delete
+    suspend fun deleteSubject(subject: StudySubject)
+
+    @Query("SELECT * FROM study_pdfs WHERE subjectId = :subjectId AND isDecoy = :isDecoy ORDER BY title ASC")
+    fun getPdfsForSubject(subjectId: Long, isDecoy: Boolean): Flow<List<StudyPdf>>
+
+    @Query("SELECT * FROM study_pdfs WHERE isDecoy = :isDecoy ORDER BY id DESC")
+    fun getAllPdfs(isDecoy: Boolean): Flow<List<StudyPdf>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPdf(pdf: StudyPdf): Long
+
+    @Update
+    suspend fun updatePdf(pdf: StudyPdf)
+
+    @Delete
+    suspend fun deletePdf(pdf: StudyPdf)
+
+    @Query("SELECT * FROM flashcards WHERE subjectId = :subjectId AND isDecoy = :isDecoy")
+    fun getFlashcardsForSubject(subjectId: Long, isDecoy: Boolean): Flow<List<Flashcard>>
+
+    @Query("SELECT * FROM flashcards WHERE isDecoy = :isDecoy")
+    fun getAllFlashcards(isDecoy: Boolean): Flow<List<Flashcard>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertFlashcard(flashcard: Flashcard): Long
+
+    @Update
+    suspend fun updateFlashcard(flashcard: Flashcard)
+
+    @Delete
+    suspend fun deleteFlashcard(flashcard: Flashcard)
+
+    @Query("SELECT * FROM study_quizzes WHERE subjectId = :subjectId AND isDecoy = :isDecoy")
+    fun getQuizzesForSubject(subjectId: Long, isDecoy: Boolean): Flow<List<StudyQuiz>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertQuiz(quiz: StudyQuiz): Long
+
+    @Update
+    suspend fun updateQuiz(quiz: StudyQuiz)
+
+    @Delete
+    suspend fun deleteQuiz(quiz: StudyQuiz)
+
+    @Query("SELECT * FROM study_sessions WHERE subjectId = :subjectId AND isDecoy = :isDecoy ORDER BY timestamp DESC")
+    fun getSessionsForSubject(subjectId: Long, isDecoy: Boolean): Flow<List<StudySession>>
+
+    @Query("SELECT * FROM study_sessions WHERE isDecoy = :isDecoy ORDER BY timestamp DESC")
+    fun getAllSessions(isDecoy: Boolean): Flow<List<StudySession>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSession(session: StudySession): Long
+
+    @Query("SELECT * FROM study_planners WHERE isDecoy = :isDecoy ORDER BY targetDate ASC")
+    fun getPlanners(isDecoy: Boolean): Flow<List<StudyPlanner>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPlanner(planner: StudyPlanner): Long
+
+    @Update
+    suspend fun updatePlanner(planner: StudyPlanner)
+
+    @Delete
+    suspend fun deletePlanner(planner: StudyPlanner)
+}
+
+@Dao
+interface MemoryConnectionDao {
+    @Query("SELECT * FROM memory_connections WHERE isDecoy = :isDecoy ORDER BY timestamp DESC")
+    fun getConnections(isDecoy: Boolean): Flow<List<MemoryConnection>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertConnection(connection: MemoryConnection): Long
+
+    @Delete
+    suspend fun deleteConnection(connection: MemoryConnection)
+}
+

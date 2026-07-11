@@ -13,9 +13,17 @@ import androidx.room.RoomDatabase
         Folder::class,
         IntruderLog::class,
         CalculationHistory::class,
-        DailyJournal::class
+        DailyJournal::class,
+        TvSeries::class,
+        StudySubject::class,
+        StudyPdf::class,
+        Flashcard::class,
+        StudyQuiz::class,
+        StudySession::class,
+        StudyPlanner::class,
+        MemoryConnection::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class VaultDatabase : RoomDatabase() {
@@ -26,6 +34,9 @@ abstract class VaultDatabase : RoomDatabase() {
     abstract fun intruderDao(): IntruderDao
     abstract fun historyDao(): HistoryDao
     abstract fun journalDao(): JournalDao
+    abstract fun tvSeriesDao(): TvSeriesDao
+    abstract fun studyDao(): StudyDao
+    abstract fun memoryConnectionDao(): MemoryConnectionDao
 
     companion object {
         @Volatile
@@ -38,7 +49,7 @@ abstract class VaultDatabase : RoomDatabase() {
                     VaultDatabase::class.java,
                     "hidex_vault_database"
                 )
-                    .fallbackToDestructiveMigration()
+                    .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                 INSTANCE = instance
                 instance

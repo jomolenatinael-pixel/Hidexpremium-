@@ -552,7 +552,7 @@ fun MovieJournalScreen(
                     }
                 }
 
-                val collectionsList = listOf("All", "Favorites", "Action", "Romance", "Sci-Fi", "Comedy", "Timeline")
+                val collectionsList = listOf("All", "Favorites", "Top 10", "Want to Rewatch", "Action", "Romance", "Sci-Fi", "Comedy", "Timeline")
                 val filteredMovies = movies.filter { movie ->
                     val matchesSearch = movie.title.contains(searchQuery, ignoreCase = true) ||
                             movie.genre.contains(searchQuery, ignoreCase = true) ||
@@ -563,6 +563,8 @@ fun MovieJournalScreen(
                     val matchesCollection = when (selectedCollection) {
                         "All" -> true
                         "Favorites" -> movie.personalRating >= 4.0f || movie.favoriteLevel >= 4
+                        "Top 10" -> true // Handled during sorting/take below
+                        "Want to Rewatch" -> movie.rewatchCount >= 1
                         "Action" -> movie.genre.contains("action", ignoreCase = true)
                         "Romance" -> movie.genre.contains("romance", ignoreCase = true)
                         "Sci-Fi" -> movie.genre.contains("sci-fi", ignoreCase = true) || movie.genre.contains("science", ignoreCase = true)
@@ -571,7 +573,9 @@ fun MovieJournalScreen(
                     }
                     matchesSearch && matchesCollection
                 }.let { list ->
-                    if (selectedCollection == "Timeline") {
+                    if (selectedCollection == "Top 10") {
+                        list.sortedByDescending { it.personalRating }.take(10)
+                    } else if (selectedCollection == "Timeline") {
                         list.sortedByDescending { it.dateWatched }
                     } else {
                         list

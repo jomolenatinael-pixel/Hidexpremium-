@@ -26,6 +26,9 @@ import com.example.ui.vault.MovieJournalScreen
 import com.example.ui.vault.NoteEditorScreen
 import com.example.ui.vault.SettingsScreen
 import com.example.ui.vault.VaultDashboard
+import com.example.ui.vault.TvSeriesScreen
+import com.example.ui.vault.StudySpaceScreen
+import com.example.ui.vault.MemoryVaultScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -89,6 +92,42 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onNavigateToDailyJournal = {
                                         navController.navigate("daily_journal")
+                                    },
+                                    onNavigateToTvSeries = {
+                                        navController.navigate("tv_series")
+                                    },
+                                    onNavigateToStudySpace = {
+                                        navController.navigate("study_space")
+                                    },
+                                    onNavigateToMemoryVault = {
+                                        navController.navigate("memory_vault")
+                                    }
+                                )
+                            }
+
+                            composable("tv_series") {
+                                TvSeriesScreen(
+                                    viewModel = viewModel,
+                                    onNavigateBack = {
+                                        navController.popBackStack()
+                                    }
+                                )
+                            }
+
+                            composable("study_space") {
+                                StudySpaceScreen(
+                                    viewModel = viewModel,
+                                    onNavigateBack = {
+                                        navController.popBackStack()
+                                    }
+                                )
+                            }
+
+                            composable("memory_vault") {
+                                MemoryVaultScreen(
+                                    viewModel = viewModel,
+                                    onNavigateBack = {
+                                        navController.popBackStack()
                                     }
                                 )
                             }
