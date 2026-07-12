@@ -13,6 +13,14 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.MyApplication">
+
+        <meta-data
+            android:name="developer"
+            android:value="Natinael Jomole" />
+        <meta-data
+            android:name="support_email"
+            android:value="natijommar@gmail.com" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

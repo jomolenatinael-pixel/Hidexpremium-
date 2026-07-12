@@ -1,3 +1,5 @@
+// Application Developer: Natinael Jomole
+// Contact Email: natijommar@gmail.com
 pluginManagement {
   repositories {
     google {

@@ -2,5 +2,7 @@
   "name": "HideX Vault Pro",
   "description": "Premium AI-powered secret calculator vault for secure photo, video, document, audio, and movie journal storage with decoy vault and cloud backup.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"],
+  "developer": "Natinael Jomole",
+  "supportEmail": "natijommar@gmail.com"
 }

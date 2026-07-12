@@ -23,6 +23,11 @@ import androidx.compose.ui.unit.sp
 import com.example.ui.VaultViewModel
 import java.text.SimpleDateFormat
 import java.util.*
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+import com.example.AppConfig
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,7 +46,7 @@ fun SettingsScreen(
     val backupWifiOnly by viewModel.backupWifiOnly.collectAsState()
     val backupHistoryList by viewModel.backupHistoryList.collectAsState()
 
-    var activeSettingTab by remember { mutableStateOf("General") } // General, Intruder Logs
+    var activeSettingTab by remember { mutableStateOf("General") } // General, Intruder Logs, About
 
     // Form inputs
     var showDecoyDialog by remember { mutableStateOf(false) }
@@ -77,7 +82,7 @@ fun SettingsScreen(
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                     .padding(4.dp)
             ) {
-                listOf("General", "Intruder Logs").forEach { tab ->
+                listOf("General", "Intruder Logs", "About").forEach { tab ->
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -96,9 +101,10 @@ fun SettingsScreen(
                 }
             }
 
-            if (activeSettingTab == "General") {
-                // GENERAL SETTINGS VIEW
-                LazyColumn(
+            when (activeSettingTab) {
+                "General" -> {
+                    // GENERAL SETTINGS VIEW
+                    LazyColumn(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
@@ -340,9 +346,10 @@ fun SettingsScreen(
                         }
                     }
                 }
-            } else {
-                // INTRUDER LOGS VIEW LIST
-                if (logs.isEmpty()) {
+                }
+                "Intruder Logs" -> {
+                    // INTRUDER LOGS VIEW LIST
+                    if (logs.isEmpty()) {
                     Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Icon(imageVector = Icons.Default.PhotoCamera, contentDescription = null, modifier = Modifier.size(48.dp))
@@ -403,6 +410,12 @@ fun SettingsScreen(
                                 }
                             }
                         }
+                    }
+                }
+                }
+                "About" -> {
+                    Box(modifier = Modifier.weight(1f)) {
+                        AboutTabContent()
                     }
                 }
             }
@@ -477,5 +490,253 @@ fun SettingsScreen(
                 }
             }
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AboutTabContent() {
+    val context = LocalContext.current
+    var feedbackType by remember { mutableStateOf("General Feedback") }
+    var feedbackMessage by remember { mutableStateOf("") }
+    val feedbackOptions = listOf("General Feedback", "Bug Report", "Feature Request")
+    var isDropdownExpanded by remember { mutableStateOf(false) }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            // Hero Brand Header
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                ),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(24.dp)
+                        .fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = "App Icon",
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
+                    Text(
+                        text = "HideX Vault Pro",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Text(
+                        text = "Your Ultimate Secure Space",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                    )
+                }
+            }
+        }
+
+        item {
+            // App & Developer Info Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Application Information",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Developer", fontWeight = FontWeight.Medium)
+                        Text(AppConfig.DEVELOPER_NAME, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Contact Email", fontWeight = FontWeight.Medium)
+                        Text(AppConfig.DEVELOPER_EMAIL, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("App Version", fontWeight = FontWeight.Medium)
+                        Text(AppConfig.getAppVersion(context), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+
+        item {
+            // Action buttons card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Get in Touch",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Have questions, suggestions or need technical support? Contact the developer directly.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    Button(
+                        onClick = {
+                            val emailIntent = Intent(Intent.ACTION_SENDTO).apply {
+                                data = Uri.parse("mailto:")
+                                putExtra(Intent.EXTRA_EMAIL, arrayOf(AppConfig.DEVELOPER_EMAIL))
+                                putExtra(Intent.EXTRA_SUBJECT, "Support Request: HideX Vault Pro")
+                            }
+                            try {
+                                context.startActivity(emailIntent)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "No email application found.", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().testTag("contact_developer_button")
+                    ) {
+                        Icon(imageVector = Icons.Default.Email, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Contact Developer")
+                    }
+                }
+            }
+        }
+
+        item {
+            // Interactive Feedback Form Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Submit Application Feedback",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    Text(
+                        text = "Help us improve HideX Vault Pro. Your feedback is sent directly to the developer.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    // Dropdown selector for Feedback Type
+                    Box {
+                        OutlinedButton(
+                            onClick = { isDropdownExpanded = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Feedback Type: $feedbackType")
+                                Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = null)
+                            }
+                        }
+                        DropdownMenu(
+                            expanded = isDropdownExpanded,
+                            onDismissRequest = { isDropdownExpanded = false }
+                        ) {
+                            feedbackOptions.forEach { option ->
+                                DropdownMenuItem(
+                                    text = { Text(option) },
+                                    onClick = {
+                                        feedbackType = option
+                                        isDropdownExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    // Feedback details input
+                    OutlinedTextField(
+                        value = feedbackMessage,
+                        onValueChange = { feedbackMessage = it },
+                        label = { Text("Your Feedback Details") },
+                        placeholder = { Text("Describe what you like or how we can improve...") },
+                        modifier = Modifier.fillMaxWidth().height(120.dp).testTag("feedback_details_input"),
+                        singleLine = false,
+                        maxLines = 5
+                    )
+
+                    Button(
+                        onClick = {
+                            if (feedbackMessage.trim().isEmpty()) {
+                                Toast.makeText(context, "Please enter some details before submitting.", Toast.LENGTH_SHORT).show()
+                            } else {
+                                val emailIntent = Intent(Intent.ACTION_SENDTO).apply {
+                                    data = Uri.parse("mailto:")
+                                    putExtra(Intent.EXTRA_EMAIL, arrayOf(AppConfig.DEVELOPER_EMAIL))
+                                    putExtra(Intent.EXTRA_SUBJECT, "[$feedbackType] HideX Vault Pro Feedback")
+                                    putExtra(Intent.EXTRA_TEXT, "Feedback Details:\n\n$feedbackMessage\n\nApp Version: ${AppConfig.getAppVersion(context)}")
+                                }
+                                try {
+                                    context.startActivity(emailIntent)
+                                    feedbackMessage = "" // reset
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "No email application found.", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().testTag("submit_feedback_button"),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondary
+                        )
+                    ) {
+                        Icon(imageVector = Icons.Default.Send, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Send Feedback")
+                    }
+                }
+            }
+        }
     }
 }
