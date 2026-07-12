@@ -24,6 +24,7 @@ class VaultPrefs(private val context: Context) {
         val KEY_BACKUP_WIFI_ONLY = booleanPreferencesKey("backup_wifi_only")
         val KEY_GOOGLE_DRIVE_CONNECTED = booleanPreferencesKey("google_drive_connected")
         val KEY_GOOGLE_ACCOUNT_NAME = stringPreferencesKey("google_account_name")
+        val KEY_GOOGLE_DRIVE_ACCESS_TOKEN = stringPreferencesKey("google_drive_access_token")
     }
 
     val primaryPin: Flow<String?> = context.dataStore.data.map { it[KEY_PRIMARY_PIN] }
@@ -38,6 +39,7 @@ class VaultPrefs(private val context: Context) {
     val backupWifiOnly: Flow<Boolean> = context.dataStore.data.map { it[KEY_BACKUP_WIFI_ONLY] ?: true }
     val googleDriveConnected: Flow<Boolean> = context.dataStore.data.map { it[KEY_GOOGLE_DRIVE_CONNECTED] ?: false }
     val googleAccountName: Flow<String> = context.dataStore.data.map { it[KEY_GOOGLE_ACCOUNT_NAME] ?: "" }
+    val googleDriveAccessToken: Flow<String> = context.dataStore.data.map { it[KEY_GOOGLE_DRIVE_ACCESS_TOKEN] ?: "" }
 
     suspend fun setPrimaryPin(pin: String) {
         context.dataStore.edit { prefs ->
@@ -94,10 +96,11 @@ class VaultPrefs(private val context: Context) {
         }
     }
 
-    suspend fun setGoogleDriveConnected(connected: Boolean, accountName: String = "") {
+    suspend fun setGoogleDriveConnected(connected: Boolean, accountName: String = "", accessToken: String = "") {
         context.dataStore.edit { prefs ->
             prefs[KEY_GOOGLE_DRIVE_CONNECTED] = connected
             prefs[KEY_GOOGLE_ACCOUNT_NAME] = accountName
+            prefs[KEY_GOOGLE_DRIVE_ACCESS_TOKEN] = accessToken
         }
     }
 

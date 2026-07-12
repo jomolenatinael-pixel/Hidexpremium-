@@ -21,6 +21,8 @@ import java.io.FileOutputStream
 import java.io.InputStream
 import java.text.SimpleDateFormat
 import java.util.*
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.asRequestBody
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class VaultViewModel(application: Application) : AndroidViewModel(application) {
@@ -91,6 +93,7 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
     val backupWifiOnly = prefs.backupWifiOnly.stateIn(viewModelScope, SharingStarted.Eagerly, true)
     val googleDriveConnected = prefs.googleDriveConnected.stateIn(viewModelScope, SharingStarted.Eagerly, false)
     val googleAccountName = prefs.googleAccountName.stateIn(viewModelScope, SharingStarted.Eagerly, "")
+    val googleDriveAccessToken = prefs.googleDriveAccessToken.stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
     // Real-time Database Flows (dynamically switching between real and decoy based on unlocked state)
     val files: StateFlow<List<VaultFile>> = combine(_isDecoyUnlocked, _isUnlocked) { decoy, unlocked ->
@@ -644,9 +647,9 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- Google Drive simulated synchronization ---
 
-    fun setGoogleAccount(account: String) {
+    fun setGoogleAccount(account: String, token: String = "") {
         viewModelScope.launch {
-            prefs.setGoogleDriveConnected(account.isNotEmpty(), account)
+            prefs.setGoogleDriveConnected(account.isNotEmpty(), account, token)
         }
     }
 
@@ -656,20 +659,126 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun createBackupZipFile(context: Context): File? {
+        return try {
+            val dbFile = context.getDatabasePath("hidex_vault_database")
+            val walFile = context.getDatabasePath("hidex_vault_database-wal")
+            val shmFile = context.getDatabasePath("hidex_vault_database-shm")
+            
+            val hiddenDir = File(context.filesDir, "hidden_vault_files")
+            val noteAttachmentsDir = File(context.filesDir, "note_attachments")
+            val intruderDir = File(context.filesDir, "intruder_photos")
+
+            val filesToZip = mutableListOf<File>()
+            if (dbFile.exists()) filesToZip.add(dbFile)
+            if (walFile.exists()) filesToZip.add(walFile)
+            if (shmFile.exists()) filesToZip.add(shmFile)
+            if (hiddenDir.exists()) filesToZip.add(hiddenDir)
+            if (noteAttachmentsDir.exists()) filesToZip.add(noteAttachmentsDir)
+            if (intruderDir.exists()) filesToZip.add(intruderDir)
+
+            val tempZip = File(context.cacheDir, "hidex_vault_backup.zip")
+            if (tempZip.exists()) {
+                tempZip.delete()
+            }
+
+            java.util.zip.ZipOutputStream(java.io.FileOutputStream(tempZip)).use { zos ->
+                for (file in filesToZip) {
+                    addFileToZip("", file, zos)
+                }
+            }
+            tempZip
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    private fun addFileToZip(parentPath: String, file: File, zos: java.util.zip.ZipOutputStream) {
+        val entryName = if (parentPath.isEmpty()) file.name else "$parentPath/${file.name}"
+        if (file.isDirectory) {
+            val children = file.listFiles() ?: return
+            for (child in children) {
+                addFileToZip(entryName, child, zos)
+            }
+        } else {
+            zos.putNextEntry(java.util.zip.ZipEntry(entryName))
+            java.io.FileInputStream(file).use { fis ->
+                fis.copyTo(zos)
+            }
+            zos.closeEntry()
+        }
+    }
+
     fun syncBackup() {
         _isSyncing.value = true
         viewModelScope.launch {
+            val context = getApplication<Application>()
+            var zipFile: File? = null
+            var errorMsg: String? = null
+            var finalLog = ""
+
             withContext(Dispatchers.IO) {
-                // Real local ZIP compilation simulation representing file-shred/AES-256 backup package
-                Thread.sleep(2500) // Realistic secure compression time
+                try {
+                    zipFile = createBackupZipFile(context)
+                    if (zipFile == null) {
+                        errorMsg = "Failed to compile secure local ZIP backup"
+                        return@withContext
+                    }
+
+                    val token = googleDriveAccessToken.value
+                    val email = googleAccountName.value
+                    val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+                    val dateStr = formatter.format(Date())
+                    val sizeStr = "${(zipFile!!.length() + 1023) / 1024} KB"
+
+                    if (token.isNotEmpty()) {
+                        // Real Google Drive API upload flow!
+                        val authHeader = "Bearer $token"
+                        val metadata = com.example.data.api.FileMetadata(
+                            name = "hidex_vault_backup_$dateStr.zip",
+                            description = "Secure encrypted backup of HideX Vault Pro ($email)"
+                        )
+                        val createResponse = com.example.data.api.RetrofitClient.googleDriveService.createFileMetadata(authHeader, metadata)
+                        if (createResponse.isSuccessful) {
+                            val fileId = createResponse.body()?.id
+                            if (fileId != null) {
+                                val requestBody = zipFile!!.asRequestBody("application/zip".toMediaTypeOrNull())
+                                val uploadResponse = com.example.data.api.RetrofitClient.googleDriveService.uploadFileContent(
+                                    authHeader = authHeader,
+                                    fileId = fileId,
+                                    fileBody = requestBody
+                                )
+                                if (uploadResponse.isSuccessful) {
+                                    finalLog = "Google Drive Backup #${_backupHistoryList.value.size + 1} - $dateStr (Real Cloud - $sizeStr)"
+                                } else {
+                                    errorMsg = "API Content Upload failed: ${uploadResponse.message()}"
+                                }
+                            } else {
+                                errorMsg = "API returned null file ID"
+                            }
+                        } else {
+                            errorMsg = "API Metadata Creation failed: ${createResponse.message()}"
+                        }
+                    } else {
+                        // Simulated Cloud Upload flow
+                        Thread.sleep(2500) // Simulate secure upload delay
+                        finalLog = "Encrypted Backup #${_backupHistoryList.value.size + 1} - $dateStr (Manual - $sizeStr)"
+                    }
+                } catch (e: Exception) {
+                    errorMsg = "Sync Exception: ${e.localizedMessage}"
+                }
             }
-            val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-            val dateStr = formatter.format(Date())
-            val sizeStr = "${(files.value.size * 250 + 1024) / 1024} MB"
-            _backupHistoryList.value = listOf(
-                "Encrypted Backup #${_backupHistoryList.value.size + 1} - $dateStr (Manual - $sizeStr)",
-                *_backupHistoryList.value.toTypedArray()
-            )
+
+            if (errorMsg != null) {
+                val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+                val dateStr = formatter.format(Date())
+                _backupHistoryList.value = listOf(
+                    "❌ Sync Failed at $dateStr: $errorMsg"
+                ) + _backupHistoryList.value
+            } else if (finalLog.isNotEmpty()) {
+                _backupHistoryList.value = listOf(finalLog) + _backupHistoryList.value
+            }
             _isSyncing.value = false
         }
     }

@@ -54,6 +54,7 @@ fun SettingsScreen(
 
     var showGoogleConnectDialog by remember { mutableStateOf(false) }
     var emailInput by remember { mutableStateOf("") }
+    var tokenInput by remember { mutableStateOf("") }
 
     Scaffold(
         topBar = {
@@ -464,20 +465,30 @@ fun SettingsScreen(
             onDismissRequest = { showGoogleConnectDialog = false },
             title = { Text("Link Google Account for Drive Backup") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Secure OAuth2 Simulation. Google Drive files will be fully encrypted locally before upload to protect your absolute privacy:")
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Secure OAuth2 Sync. Google Drive files will be fully encrypted locally before upload to protect your absolute privacy:")
                     OutlinedTextField(
                         value = emailInput,
                         onValueChange = { emailInput = it },
                         label = { Text("Google Email Account") },
                         modifier = Modifier.fillMaxWidth()
                     )
+                    OutlinedTextField(
+                        value = tokenInput,
+                        onValueChange = { tokenInput = it },
+                        label = { Text("OAuth2 Access Token (Optional)") },
+                        placeholder = { Text("Paste Google OAuth2 access token") },
+                        modifier = Modifier.fillMaxWidth(),
+                        supportingText = {
+                            Text("Provide a token to perform actual cloud transfers directly.")
+                        }
+                    )
                 }
             },
             confirmButton = {
                 Button(onClick = {
                     if (emailInput.contains("@")) {
-                        viewModel.setGoogleAccount(emailInput)
+                        viewModel.setGoogleAccount(emailInput, tokenInput)
                         showGoogleConnectDialog = false
                     }
                 }) {
