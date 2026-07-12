@@ -5,7 +5,6 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
@@ -20,6 +19,7 @@ import androidx.navigation.navArgument
 import com.example.ui.VaultViewModel
 import com.example.ui.calculator.CalculatorScreen
 import com.example.ui.theme.MyApplicationTheme
+import com.example.ui.theme.ThemeMode
 import com.example.ui.vault.DailyJournalScreen
 import com.example.ui.vault.MediaVaultScreen
 import com.example.ui.vault.MovieJournalScreen
@@ -39,11 +39,14 @@ class MainActivity : ComponentActivity() {
             val themeSelection by viewModel.themeSelection.collectAsState()
             val screenshotProtection by viewModel.screenshotProtection.collectAsState()
 
-            // Dynamic Dark Theme resolution
-            val darkTheme = when (themeSelection) {
-                "LIGHT" -> false
-                "DARK", "AMOLED" -> true
-                else -> isSystemInDarkTheme()
+            // Resolve the user's theme preference into a ThemeMode. The theme composable
+            // handles the actual colour-scheme selection (including the distinct AMOLED
+            // true-black scheme), so we no longer pass a raw boolean here.
+            val themeMode = when (themeSelection) {
+                "LIGHT" -> ThemeMode.LIGHT
+                "DARK" -> ThemeMode.DARK
+                "AMOLED" -> ThemeMode.AMOLED
+                else -> ThemeMode.SYSTEM
             }
 
             // Dynamic Window FLAG_SECURE handling for screenshot/recording protection
@@ -59,7 +62,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            MyApplicationTheme(darkTheme = darkTheme) {
+            MyApplicationTheme(themeMode = themeMode) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val isUnlocked by viewModel.isUnlocked.collectAsState()
 
