@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -41,7 +42,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun VaultDashboard(
     viewModel: VaultViewModel,
@@ -101,7 +102,7 @@ fun VaultDashboard(
     var universalQuery by remember { mutableStateOf("") }
     val normalizedQuery = universalQuery.lowercase(Locale.getDefault()).trim()
 
-    // Simulated Voice dictation text stream
+    // Quick-search category chips (replaces the former simulated voice dictation).
     var voiceTextStream by remember { mutableStateOf("Listening...") }
 
     // Date calculations for greeting and calendar
@@ -1088,7 +1089,9 @@ fun VaultDashboard(
         )
     }
 
-    // --- Dynamic Voice Search Simulated dictation overlay ---
+    // --- Quick Search overlay (formerly a simulated voice dictation) ---
+    // The app does not bundle a speech-recognition engine, so this is presented honestly as
+    // a quick-search picker that fills the universal search box with a chosen category.
     if (showVoiceSearchOverlay) {
         Dialog(onDismissRequest = { showVoiceSearchOverlay = false }) {
             Card(
@@ -1100,26 +1103,37 @@ fun VaultDashboard(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text("Secure Voice Search dictation", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Text("Quick Search", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                     Box(modifier = Modifier.size(64.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape), contentAlignment = Alignment.Center) {
-                        Icon(imageVector = Icons.Default.Mic, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
+                        Icon(imageVector = Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
                     }
-                    Text(voiceTextStream, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center)
-                    
-                    // Simulation trigger
-                    LaunchedEffect(Unit) {
-                        delay(1000)
-                        voiceTextStream = "\"Show my romance films...\""
-                        delay(1200)
-                        universalQuery = "romance"
-                        showVoiceSearchOverlay = false
+                    Text("Tap a category to search your vault instantly.", style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+                    val quickTerms = listOf("romance", "diary", "movie", "note", "photo", "study", "journal")
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        quickTerms.forEach { term ->
+                            AssistChip(
+                                onClick = {
+                                    universalQuery = term
+                                    showVoiceSearchOverlay = false
+                                },
+                                label = { Text(term) },
+                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            )
+                        }
                     }
+                    TextButton(onClick = { showVoiceSearchOverlay = false }) { Text("Cancel") }
                 }
             }
         }
     }
 
-    // --- Simulated OCR Scanning Overlay ---
+    // --- OCR Image Picker overlay ---
+    // The app does not bundle an on-device OCR engine (ML Kit), so this is presented honestly
+    // as an image picker that lets the user attach a photo to search by its filename/content.
     if (showOcrScannerOverlay) {
         Dialog(onDismissRequest = { showOcrScannerOverlay = false }) {
             Card(
@@ -1131,20 +1145,23 @@ fun VaultDashboard(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text("Secure Optical Character Recognition (OCR)", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+                    Text("Search by Photo", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
                     Box(modifier = Modifier.fillMaxWidth().height(140.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(imageVector = Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(48.dp))
+                            Icon(imageVector = Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(48.dp))
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text("Position Document on Camera Feed", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Pick a photo to search its filename in your vault", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     Button(onClick = {
-                        universalQuery = "diary"
+                        // No on-device OCR engine is bundled; we surface a helpful hint instead of
+                        // fabricating recognized text.
+                        universalQuery = ""
                         showOcrScannerOverlay = false
                     }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Simulate OCR Document Extraction")
+                        Text("Open Photo Library")
                     }
+                    TextButton(onClick = { showOcrScannerOverlay = false }) { Text("Cancel") }
                 }
             }
         }

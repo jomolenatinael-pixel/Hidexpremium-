@@ -35,6 +35,7 @@ fun SettingsScreen(
     viewModel: VaultViewModel,
     onNavigateBack: () -> Unit
 ) {
+    val context = LocalContext.current
     val screenshotProtection by viewModel.screenshotProtection.collectAsState()
     val autolockTimeout by viewModel.autolockTimeout.collectAsState()
     val themeSelection by viewModel.themeSelection.collectAsState()
@@ -237,7 +238,7 @@ fun SettingsScreen(
 
                     item {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                            listOf("LIGHT", "DARK", "AMOLED").forEach { mode ->
+                            listOf("SYSTEM", "LIGHT", "DARK", "AMOLED").forEach { mode ->
                                 Box(
                                     modifier = Modifier
                                         .weight(1f)
@@ -358,7 +359,9 @@ fun SettingsScreen(
                                                 }
                                                 TextButton(
                                                     onClick = {
-                                                        // Simulated Restore Action
+                                                        viewModel.restoreFromLatestLocalBackup { msg ->
+                                                            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                                                        }
                                                     },
                                                     contentPadding = PaddingValues(0.dp),
                                                     modifier = Modifier.height(24.dp)

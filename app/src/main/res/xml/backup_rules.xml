@@ -1,13 +1,22 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  HideX Vault Pro backup rules.
+
+  Auto Backup / cloud backup is intentionally DISABLED for this app (see
+  AndroidManifest android:allowBackup="false"). This file makes that intent
+  explicit and also defines exclusion rules so that even if allowBackup were
+  ever re-enabled, sensitive data (encrypted DB, DataStore prefs holding PIN
+  hashes and the encrypted Drive token, hidden vault files, intruder logs,
+  local backups) would never be copied to Google's servers.
+
+  The app ships its own AES-256 Google Drive encrypted-backup feature, which is
+  the only supported backup path.
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <exclude domain="database" path="." />
+    <exclude domain="file" path="hidden_vault_files/" />
+    <exclude domain="file" path="note_attachments/" />
+    <exclude domain="file" path="intruder_photos/" />
+    <exclude domain="file" path="local_backups/" />
+    <exclude domain="sharedpref" path="." />
 </full-backup-content>

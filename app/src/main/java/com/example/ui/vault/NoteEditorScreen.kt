@@ -293,7 +293,7 @@ fun NoteEditorScreen(
                             Icon(imageVector = Icons.Default.Brush, contentDescription = "Handwriting / Drawing Mode", modifier = Modifier.size(18.dp))
                         }
                         IconButton(onClick = { isRecordingVoice = true }) {
-                            Icon(imageVector = Icons.Default.Mic, contentDescription = "Voice Dictation", modifier = Modifier.size(18.dp))
+                            Icon(imageVector = Icons.Default.Mic, contentDescription = "Quick Thought", modifier = Modifier.size(18.dp))
                         }
                     }
 
@@ -844,66 +844,44 @@ fun NoteEditorScreen(
             )
         }
 
-        // 2. Voice Dictation Dialog
+        // 2. Quick Thought dialog (manual entry; speech-to-text not wired up in this build)
         if (isRecordingVoice) {
+            var quickThought by remember { mutableStateOf("") }
             AlertDialog(
                 onDismissRequest = { isRecordingVoice = false },
-                title = { Text("Voice Note Dictation") },
+                title = { Text("Quick Thought") },
                 text = {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text("Listening to voice input...", style = MaterialTheme.typography.bodyMedium)
-
-                        // Animating audio soundwave simulator canvas
-                        var soundwaveHeight by remember { mutableStateOf(10f) }
-                        LaunchedEffect(isRecordingVoice) {
-                            while (isRecordingVoice) {
-                                soundwaveHeight = (10..50).random().toFloat()
-                                delay(120)
-                            }
-                        }
-
-                        val waveColor = MaterialTheme.colorScheme.primary
-                        Canvas(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(60.dp)
-                        ) {
-                            val midY = size.height / 2
-                            val barWidth = 8f
-                            val gap = 6f
-                            val numBars = (size.width / (barWidth + gap)).toInt()
-                            for (i in 0..numBars) {
-                                val x = i * (barWidth + gap)
-                                val heightMultiplier = if (i % 2 == 0) soundwaveHeight else soundwaveHeight * 0.6f
-                                drawLine(
-                                    color = waveColor,
-                                    start = Offset(x, midY - heightMultiplier),
-                                    end = Offset(x, midY + heightMultiplier),
-                                    strokeWidth = barWidth
-                                )
-                            }
-                        }
-
                         Text(
-                            text = "Speak clearly. Click 'Finish' to transcribe.",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            "Add a quick timestamped thought to your note.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        OutlinedTextField(
+                            value = quickThought,
+                            onValueChange = { quickThought = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("Type your thought...") },
+                            minLines = 2,
+                            maxLines = 5
                         )
                     }
                 },
                 confirmButton = {
                     Button(
                         onClick = {
-                            val timestamp = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
-                            updateContentWithUndo(noteContent + "\n*Dictated thought ($timestamp): \"Deep insight and cinema analytics synchronized perfectly.\"*")
+                            if (quickThought.isNotBlank()) {
+                                val timestamp = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+                                updateContentWithUndo(noteContent + "\n*Thought ($timestamp): \"$quickThought\"*")
+                            }
                             isRecordingVoice = false
                         }
                     ) {
-                        Text("Finish")
+                        Text("Add")
                     }
                 },
                 dismissButton = {

@@ -39,7 +39,10 @@ fun DailyJournalScreen(
     var showAddJournalDialog by remember { mutableStateOf(false) }
     var selectedMood by remember { mutableStateOf("Happy") }
     var journalText by remember { mutableStateOf("") }
-    var dateString by remember { mutableStateOf("2026-07-09") }
+    var dateString by remember {
+        val fmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+        mutableStateOf(fmt.format(java.util.Date()))
+    }
 
     val moods = mapOf(
         "Happy" to "😊",

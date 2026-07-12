@@ -73,7 +73,10 @@ fun MovieJournalScreen(
     var personalRating by remember { mutableStateOf(4.5f) }
     var favoriteLevel by remember { mutableStateOf(3) } // hearts count
     var mood by remember { mutableStateOf("Happy") }
-    var dateWatched by remember { mutableStateOf("2026-07-09") }
+    var dateWatched by remember {
+        val fmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+        mutableStateOf(fmt.format(java.util.Date()))
+    }
     var rewatchCount by remember { mutableStateOf("1") }
     var location by remember { mutableStateOf("Home") }
     var partner by remember { mutableStateOf("None") }
@@ -1037,8 +1040,21 @@ fun MovieJournalScreen(
                                                 Text(text = item.title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                                                 Text(text = "Genre: ${item.genre} • Release Date: ${item.releaseDate.ifEmpty { "TBD" }}")
                                             }
-                                            // Simulated Countdown
-                                            val daysLeft = Random.nextInt(2, 45)
+                                            // Real countdown computed from the stored release date.
+                                            val daysLeft = remember(item.releaseDate) {
+                                                if (item.releaseDate.isBlank()) {
+                                                    null
+                                                } else {
+                                                    try {
+                                                        val fmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                                                        val release = fmt.parse(item.releaseDate)
+                                                        val diffMs = (release?.time ?: 0L) - System.currentTimeMillis()
+                                                        (diffMs / (1000L * 60 * 60 * 24)).toInt()
+                                                    } catch (e: Exception) {
+                                                        null
+                                                    }
+                                                }
+                                            }
                                             Box(
                                                 modifier = Modifier
                                                     .clip(RoundedCornerShape(8.dp))
@@ -1046,7 +1062,12 @@ fun MovieJournalScreen(
                                                     .padding(horizontal = 8.dp, vertical = 4.dp)
                                             ) {
                                                 Text(
-                                                    text = "In $daysLeft days",
+                                                    text = when {
+                                                        daysLeft == null -> "TBD"
+                                                        daysLeft > 0 -> "In $daysLeft days"
+                                                        daysLeft == 0 -> "Today"
+                                                        else -> "Released"
+                                                    },
                                                     fontWeight = FontWeight.Bold,
                                                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                                                     fontSize = 12.sp
@@ -1237,23 +1258,30 @@ fun MovieJournalScreen(
                                         val favPartner = movies.groupBy { it.watchPartner }.maxByOrNull { it.value.size }?.key ?: "N/A"
                                         val favQuote = movies.filter { it.favoriteQuote.isNotEmpty() }.randomOrNull()?.favoriteQuote ?: "N/A"
 
+                                        val totalMovies = movies.size + watchlist.size
+                                        val rewatchTotal = movies.sumOf { it.rewatchCount }
+                                        val topMood = movies.groupBy { it.moodAfterWatching }.maxByOrNull { it.value.size }?.key
+                                        val topLocation = movies.groupBy { it.watchLocation }.maxByOrNull { it.value.size }?.key
+                                        val favoriteCount = movies.count { it.personalRating >= 4.5f }
+
                                         aiStatsText = """
-                                            === YOUR PERSONALIZED AI MOVIE INSIGHTS ===
-                                            
-                                            🎬 Watch Personality: The Emotional Critic
-                                            You don't just watch movies; you live them. You have a highly sentimental connection to soundtracks and quote logs.
-                                            
+                                            === YOUR PERSONALIZED MOVIE PROFILE ===
+
+                                            🎬 Watch Personality: ${if (rewatchTotal > movies.size) "The Rewatcher" else if (favoriteCount > movies.size / 2) "The Collector" else "The Explorer"}
+                                            Based on ${movies.size} logged movie${if (movies.size != 1) "s" else ""} and ${rewatchTotal} total rewatches.
+
                                             📊 Key Statistics:
-                                            - Total Movies Vaulted: ${movies.size}
-                                            - Dominant Favorite Genre: $topGenreStat
+                                            - Total Titles Vaulted: $totalMovies (${movies.size} watched, ${watchlist.size} on watchlist)
+                                            - Dominant Genre: $topGenreStat
                                             - Personal Rating Index: ${String.format(Locale.US, "%.1f", avgRatingStat)} / 5.0
+                                            - Favorite Movies (★ 4.5+): $favoriteCount
+                                            - Total Rewatches: $rewatchTotal
                                             - Most Frequent Co-Watcher: $favPartner
-                                            
-                                            💬 Your Ultimate Motto quote: 
+                                            - Most Common Watch Location: ${topLocation ?: "N/A"}
+                                            - Most Common Post-Watch Mood: ${topMood ?: "N/A"}
+
+                                            💬 Your Most-Loved Quote:
                                             "$favQuote"
-                                            
-                                            🧠 AI Wellness Insight:
-                                            Your mood matches 85% energetic/inspired after watching cinema. Keep filling up your secret catalog!
                                         """.trimIndent()
                                         isAnalyzing = false
                                         showAiStatsInfo = true

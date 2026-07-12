@@ -48,7 +48,7 @@ fun TvSeriesScreen(
 ) {
     val seriesList by viewModel.tvSeries.collectAsState()
 
-    var activeTab by remember { mutableStateOf("Watching") } // Watching, Finished, Recommendations
+    var activeTab by remember { mutableStateOf("Watching") } // Watching, Finished
     var selectedTv by remember { mutableStateOf<TvSeries?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var isAddingTv by remember { mutableStateOf(false) }
