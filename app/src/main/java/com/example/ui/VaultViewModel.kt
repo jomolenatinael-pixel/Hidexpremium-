@@ -204,6 +204,18 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
             "Encrypted Backup #11 - 2026-07-05 12:15 (Manual)"
         )
         performLocalDbBackup()
+
+        viewModelScope.launch {
+            prefs.isPinSet.collect { isSet ->
+                if (isSet) {
+                    if (_setupStep.value == 0) {
+                        _setupStep.value = 3
+                    }
+                } else {
+                    _setupStep.value = 0
+                }
+            }
+        }
     }
 
     // --- Calculator Operations ---
@@ -285,7 +297,7 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
     private fun evaluateOrUnlock(input: String) {
         // Unlock Logic
         val isSet = isPinSet.value
-        if (!isSet) {
+        if (!isSet || _setupStep.value < 3) {
             // Under PIN Setup
             handlePinSetup(input)
             return
@@ -313,6 +325,17 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             // Wrong PIN or Normal Calculator evaluation
             evaluateMath(input)
+        }
+    }
+
+    fun resetPrimaryPin() {
+        viewModelScope.launch {
+            prefs.clearPinSetup()
+            _isUnlocked.value = false
+            _isDecoyUnlocked.value = false
+            _setupStep.value = 0
+            _calcDisplay.value = "0"
+            _calcExpression.value = ""
         }
     }
 
@@ -993,6 +1016,42 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
     private fun getOfflineAiFallback(prompt: String): String {
         val lower = prompt.lowercase()
         return when {
+            lower.contains("analyze the movie") && lower.contains("json") -> {
+                """
+                {
+                  "genre": "Sci-Fi / Drama",
+                  "releaseYear": 2014,
+                  "runtime": "169 min",
+                  "language": "English",
+                  "summary": "A team of explorers travel through a wormhole in space in an attempt to ensure humanity's survival.",
+                  "rating": 4.8,
+                  "recommendations": "Inception, Gravity, Arrival",
+                  "quote": "We used to look up at the sky and wonder at our place in the stars, now we just look down and worry about our place in the dirt.",
+                  "character": "Cooper",
+                  "bestScene": "The dock scene with spinning endurance and organ soundtrack music.",
+                  "hiddenDetails": "The film used real cornfields which Christopher Nolan later sold for a profit."
+                }
+                """.trimIndent()
+            }
+            lower.contains("analyze") && lower.contains("review") -> {
+                """
+                ### 🎬 Critic Review
+                An absolute cinematic masterpiece of modern science fiction, exploring love, time dilation, and survival across the stars with powerful performances and a heart-pounding organ score.
+                
+                ### 🏆 Rating & Achievements
+                - **AI Recommended Rating**: 9.5/10 (A grand cinematic epic with unmatched emotional core)
+                - **Key Strengths**: Visual grandeur, profound score, stellar editing, emotional performances.
+                
+                ### 🧠 Philosophical Themes & Lessons
+                - **Love transcends time & space**: The driving emotional force that connects parents and children is shown to be a tangible dimension.
+                - **Scientific exploration & human perseverance**: Human survival depends on looking outward to the stars rather than looking down in defeat.
+                
+                ### 🍿 Tailored Recommendations
+                1. **Inception** - Another mind-bending Christopher Nolan film with high emotional stakes and complex structure.
+                2. **Arrival** - A beautifully introspective sci-fi about time, language, and connection.
+                3. **Gravity** - An intense, realistic portrayal of survival in the silent void of space.
+                """.trimIndent()
+            }
             lower.contains("summarize") -> {
                 "### Summary Overview ✨\n\nThis note centers around private thoughts and movie observations.\n\n- **Key Takeaway**: Maintain high privacy levels.\n- **Action Items**: Backup notes to secure drive, sync with movies vault."
             }

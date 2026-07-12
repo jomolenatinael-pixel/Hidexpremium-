@@ -14,6 +14,8 @@ import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -43,6 +45,7 @@ fun CalculatorScreen(
     val setupStep by viewModel.setupStep.collectAsState()
 
     var showHistory by remember { mutableStateOf(false) }
+    var showUnlockHelpDialog by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
@@ -71,7 +74,7 @@ fun CalculatorScreen(
                 }
 
                 Text(
-                    text = if (!isPinSet) "HideX PIN Setup" else "Calculator",
+                    text = if (setupStep < 3) "HideX PIN Setup" else "Calculator",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
@@ -81,9 +84,81 @@ fun CalculatorScreen(
                     IconButton(onClick = { showHistory = true }) {
                         Icon(imageVector = Icons.Default.History, contentDescription = "History")
                     }
+                    if (isPinSet) {
+                        IconButton(onClick = { showUnlockHelpDialog = true }) {
+                            Icon(imageVector = Icons.Default.Info, contentDescription = "Help")
+                        }
+                    }
                     if (!isPinSet) {
                         IconButton(onClick = onNavigateToSettings) {
                             Icon(imageVector = Icons.Default.Settings, contentDescription = "Settings")
+                        }
+                    }
+                }
+            }
+
+            if (setupStep < 3) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("pin_setup_guide_card"),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                    ),
+                    shape = RoundedCornerShape(20.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "Secure PIN Configuration",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                        
+                        Text(
+                            text = when (setupStep) {
+                                0 -> "Step 1/3: Enter a 4+ digit secure PIN on the calculator, then press the '=' key."
+                                1 -> "Step 2/3: Re-enter the exact same PIN to confirm, then press the '=' key."
+                                2 -> "Step 3/3 (Optional): Enter a decoy PIN and press '=' (loads a safe blank decoy profile under coercion), or press '=' to skip."
+                                else -> ""
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
+                        )
+                        
+                        // Stepper indicator dots
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(top = 4.dp)
+                        ) {
+                            (0..2).forEach { index ->
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (setupStep == index) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+                                        )
+                                )
+                            }
                         }
                     }
                 }
@@ -342,6 +417,48 @@ fun CalculatorScreen(
                     }
                 }
             }
+        }
+
+        // Help Information Dialog
+        if (showUnlockHelpDialog) {
+            AlertDialog(
+                onDismissRequest = { showUnlockHelpDialog = false },
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Text("Secure Vault Access")
+                    }
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "This calculator serves as a secure gateway to your private vault.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = "• To unlock: Enter your 4+ digit PIN code on the calculator and press the '=' key.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "• Decoy mode: If you have configured a decoy PIN, enter it and press '=' to open a safe decoy vault with separate data.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = { showUnlockHelpDialog = false }) {
+                        Text("Got it")
+                    }
+                }
+            )
         }
     }
 }

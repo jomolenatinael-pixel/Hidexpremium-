@@ -51,6 +51,7 @@ fun SettingsScreen(
     // Form inputs
     var showDecoyDialog by remember { mutableStateOf(false) }
     var decoyPinInput by remember { mutableStateOf("") }
+    var showResetPinDialog by remember { mutableStateOf(false) }
 
     var showGoogleConnectDialog by remember { mutableStateOf(false) }
     var emailInput by remember { mutableStateOf("") }
@@ -132,6 +133,31 @@ fun SettingsScreen(
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text("Decoy Profile / Fake PIN", fontWeight = FontWeight.Bold)
                                     Text("Entering this PIN opens an entirely separate decoy vault profile", fontSize = 12.sp)
+                                }
+                                Icon(imageVector = Icons.Default.ChevronRight, contentDescription = null)
+                            }
+                        }
+                    }
+
+                    item {
+                        // Reset PIN Option
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showResetPinDialog = true }
+                                .testTag("reset_pin_option")
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .padding(16.dp)
+                                    .fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(imageVector = Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Reset Security PIN", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                                    Text("Erases your custom PINs, locks the vault, and restarts setup", fontSize = 12.sp)
                                 }
                                 Icon(imageVector = Icons.Default.ChevronRight, contentDescription = null)
                             }
@@ -421,6 +447,33 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+
+    // Reset PIN Confirmation Dialog
+    if (showResetPinDialog) {
+        AlertDialog(
+            onDismissRequest = { showResetPinDialog = false },
+            title = { Text("Reset Secure PIN?", color = MaterialTheme.colorScheme.error) },
+            text = {
+                Text("This will securely erase your custom Primary and Decoy PIN codes. The application will immediately lock, and you will be prompted to configure a new PIN upon launching the calculator gateway.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.resetPrimaryPin()
+                        showResetPinDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Reset and Lock")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetPinDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     // Decoy Setup PIN popup dialog

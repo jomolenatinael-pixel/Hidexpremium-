@@ -36,6 +36,7 @@ import com.example.data.MovieJournal
 import com.example.ui.VaultViewModel
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlinx.coroutines.launch
 import kotlin.random.Random
 
 fun getDynamicMovieGradient(movie: MovieJournal): Brush {
@@ -103,6 +104,9 @@ fun MovieJournalScreen(
     var showAiStatsInfo by remember { mutableStateOf(false) }
     var aiStatsText by remember { mutableStateOf("") }
     var isAnalyzing by remember { mutableStateOf(false) }
+
+    var isGeneratingByGemini by remember { mutableStateOf(false) }
+    var aiErrorMessage by remember { mutableStateOf("") }
 
     val context = LocalContext.current
 
@@ -304,6 +308,228 @@ fun MovieJournalScreen(
                         }
                     }
 
+                    item {
+                        var isGeneratingDetailByGemini by remember { mutableStateOf(false) }
+                        var detailAiInsights by remember { mutableStateOf<String?>(null) }
+                        var aiDetailError by remember { mutableStateOf("") }
+                        val coroutineScope = rememberCoroutineScope()
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth().testTag("gemini_insights_card"),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.2f)
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                MaterialTheme.colorScheme.tertiary.copy(alpha = 0.5f)
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AutoAwesome,
+                                        contentDescription = "Gemini",
+                                        tint = MaterialTheme.colorScheme.tertiary
+                                    )
+                                    Text(
+                                        text = "Gemini AI Insights & Review",
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                                    )
+                                }
+
+                                if (detailAiInsights == null) {
+                                    Text(
+                                        text = "Get a detailed critic review, rating breakdown, philosophical themes, and tailor-made movie recommendations specifically for ${editing.title}.",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+
+                                    if (aiDetailError.isNotEmpty()) {
+                                        Text(
+                                            text = aiDetailError,
+                                            color = MaterialTheme.colorScheme.error,
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            isGeneratingDetailByGemini = true
+                                            aiDetailError = ""
+                                            coroutineScope.launch {
+                                                try {
+                                                    val prompt = """
+                                                        Provide an in-depth film critic analysis, thematic review, and rating breakdown for the movie '${editing.title}'.
+                                                        Include the following sections formatted nicely:
+                                                        ### 🎬 Critic Review
+                                                        (A deep, eloquent 2-sentence synopsis/review of the film's artistry and narrative)
+                                                        
+                                                        ### 🏆 Rating & Achievements
+                                                        - **AI Recommended Rating**: X/10 (with a brief justification)
+                                                        - **Key Strengths**: (cinematography, performances, writing, soundtrack, etc.)
+                                                        
+                                                        ### 🧠 Philosophical Themes & Lessons
+                                                        (What deeper themes or lessons does the film explore?)
+                                                        
+                                                        ### 🍿 Tailored Recommendations
+                                                        1. **[Movie Name]** - (Brief 1-sentence reason why you'll love it based on this)
+                                                        2. **[Movie Name]** - (Brief 1-sentence reason)
+                                                        3. **[Movie Name]** - (Brief 1-sentence reason)
+                                                    """.trimIndent()
+                                                    val response = viewModel.callGeminiApi(prompt)
+                                                    detailAiInsights = response
+                                                } catch (e: Exception) {
+                                                    e.printStackTrace()
+                                                    aiDetailError = "Error generating insights: ${e.localizedMessage}"
+                                                } finally {
+                                                    isGeneratingDetailByGemini = false
+                                                }
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.tertiary
+                                        ),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        enabled = !isGeneratingDetailByGemini
+                                    ) {
+                                        if (isGeneratingDetailByGemini) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(20.dp),
+                                                color = MaterialTheme.colorScheme.onTertiary,
+                                                strokeWidth = 2.dp
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text("Generating Insights...")
+                                        } else {
+                                            Icon(imageVector = Icons.Default.AutoAwesome, contentDescription = null)
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text("Generate AI Critic Insights")
+                                        }
+                                    }
+                                } else {
+                                    Column(
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        detailAiInsights?.split("\n")?.forEach { line ->
+                                            when {
+                                                line.trim().startsWith("### ") -> {
+                                                    Text(
+                                                        text = line.trim().substring(4),
+                                                        style = MaterialTheme.typography.titleMedium,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.tertiary,
+                                                        modifier = Modifier.padding(top = 8.dp)
+                                                    )
+                                                }
+                                                line.trim().startsWith("- ") || line.trim().startsWith("* ") -> {
+                                                    Text(
+                                                        text = line.trim(),
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                                else -> {
+                                                    Text(
+                                                        text = line,
+                                                        style = MaterialTheme.typography.bodyMedium
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            OutlinedButton(
+                                                onClick = { detailAiInsights = null },
+                                                modifier = Modifier.weight(1.5f)
+                                            ) {
+                                                Text("Reset")
+                                            }
+
+                                            Button(
+                                                onClick = {
+                                                    coroutineScope.launch {
+                                                        try {
+                                                            var updatedReview = editing.review
+                                                            var updatedLessons = editing.lifeLesson
+                                                            var updatedSimilar = editing.similarMovies
+
+                                                            val lines = detailAiInsights?.split("\n") ?: emptyList()
+                                                            var currentSection = ""
+                                                            val criticReviewLines = mutableListOf<String>()
+                                                            val themesLines = mutableListOf<String>()
+                                                            val recommendationLines = mutableListOf<String>()
+
+                                                            lines.forEach { line ->
+                                                                val trimmed = line.trim()
+                                                                when {
+                                                                    trimmed.contains("Critic Review") -> currentSection = "critic"
+                                                                    trimmed.contains("Philosophical Themes") -> currentSection = "themes"
+                                                                    trimmed.contains("Recommendations") -> currentSection = "rec"
+                                                                    trimmed.startsWith("### ") -> currentSection = ""
+                                                                    else -> {
+                                                                        if (trimmed.isNotEmpty()) {
+                                                                            when (currentSection) {
+                                                                                "critic" -> criticReviewLines.add(trimmed)
+                                                                                "themes" -> themesLines.add(trimmed)
+                                                                                "rec" -> recommendationLines.add(trimmed)
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+
+                                                            if (criticReviewLines.isNotEmpty()) {
+                                                                updatedReview = criticReviewLines.joinToString("\n")
+                                                            }
+                                                            if (themesLines.isNotEmpty()) {
+                                                                updatedLessons = themesLines.joinToString("\n")
+                                                            }
+                                                            if (recommendationLines.isNotEmpty()) {
+                                                                updatedSimilar = recommendationLines.joinToString("\n")
+                                                            }
+
+                                                            val updatedMovie = editing.copy(
+                                                                review = updatedReview,
+                                                                lifeLesson = updatedLessons,
+                                                                similarMovies = updatedSimilar
+                                                            )
+
+                                                            viewModel.updateMovie(updatedMovie)
+                                                            selectedMovie = updatedMovie
+                                                            detailAiInsights = null
+                                                        } catch (e: Exception) {
+                                                            e.printStackTrace()
+                                                        }
+                                                    }
+                                                },
+                                                modifier = Modifier.weight(2f),
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = MaterialTheme.colorScheme.tertiary
+                                                )
+                                            ) {
+                                                Icon(imageVector = Icons.Default.Check, contentDescription = null)
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text("Save to Journal")
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                 } else {
                     // NEW ENTRY FIELD FORM MODE
                     item {
@@ -315,6 +541,86 @@ fun MovieJournalScreen(
                                 .fillMaxWidth()
                                 .testTag("movie_title_input")
                         )
+                    }
+
+                    item {
+                        val coroutineScope = rememberCoroutineScope()
+                        Button(
+                            onClick = {
+                                if (title.trim().isNotEmpty()) {
+                                    isGeneratingByGemini = true
+                                    aiErrorMessage = ""
+                                    coroutineScope.launch {
+                                        try {
+                                            val prompt = """
+                                                Analyze the movie titled "$title". Provide a detailed and accurate analysis. 
+                                                Return ONLY a valid JSON object matching the following structure precisely. Do NOT wrap the JSON in markdown code blocks, do not write any introductory or trailing text. Return raw JSON.
+                                                {
+                                                  "genre": "Genre of the movie",
+                                                  "releaseYear": 2024,
+                                                  "runtime": "e.g., 148 min",
+                                                  "language": "Primary language of the movie",
+                                                  "summary": "Brief 1-2 sentence plot summary",
+                                                  "rating": 4.5,
+                                                  "recommendations": "3 similar movies as a comma-separated list",
+                                                  "quote": "A famous/memorable quote from the movie",
+                                                  "character": "Main/iconic character from the movie",
+                                                  "bestScene": "A brief description of the most famous or best scene",
+                                                  "hiddenDetails": "1 interesting trivia or easter egg about the movie"
+                                                }
+                                            """.trimIndent()
+                                            val response = viewModel.callGeminiApi(prompt)
+                                            val jsonStr = response.trim().substringAfter("{").substringBeforeLast("}")
+                                            val fullJson = "{$jsonStr}"
+                                            val json = org.json.JSONObject(fullJson)
+                                            genre = json.optString("genre", genre)
+                                            releaseYear = json.optInt("releaseYear", releaseYear.toIntOrNull() ?: 2026).toString()
+                                            runtime = json.optString("runtime", runtime)
+                                            language = json.optString("language", language)
+                                            review = json.optString("summary", review)
+                                            personalRating = json.optDouble("rating", personalRating.toDouble()).toFloat()
+                                            similar = json.optString("recommendations", similar)
+                                            quote = json.optString("quote", quote)
+                                            character = json.optString("character", character)
+                                            bestScene = json.optString("bestScene", bestScene)
+                                            easterEggs = json.optString("hiddenDetails", easterEggs)
+                                        } catch (e: Exception) {
+                                            e.printStackTrace()
+                                            aiErrorMessage = "Failed to parse Gemini response: ${e.localizedMessage}"
+                                        } finally {
+                                            isGeneratingByGemini = false
+                                        }
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().testTag("gemini_generate_button"),
+                            enabled = !isGeneratingByGemini && title.trim().isNotEmpty()
+                        ) {
+                            if (isGeneratingByGemini) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Analyzing Movie with Gemini...")
+                            } else {
+                                Icon(imageVector = Icons.Default.AutoAwesome, contentDescription = "AI")
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Auto-Generate with Gemini")
+                            }
+                        }
+                    }
+
+                    if (aiErrorMessage.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = aiErrorMessage,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            )
+                        }
                     }
 
                     item {

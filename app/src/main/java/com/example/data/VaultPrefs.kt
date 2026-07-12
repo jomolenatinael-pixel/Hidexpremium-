@@ -109,4 +109,12 @@ class VaultPrefs(private val context: Context) {
             prefs.clear()
         }
     }
+
+    suspend fun clearPinSetup() {
+        context.dataStore.edit { prefs ->
+            prefs.remove(KEY_PRIMARY_PIN)
+            prefs.remove(KEY_DECOY_PIN)
+            prefs[KEY_IS_PIN_SET] = false
+        }
+    }
 }
