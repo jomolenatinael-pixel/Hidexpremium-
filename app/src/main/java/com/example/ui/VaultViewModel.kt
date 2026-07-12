@@ -2,8 +2,6 @@ package com.example.ui
 
 import android.app.Application
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -198,13 +196,8 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
 
     init {
-        // Load initial backup log history
-        _backupHistoryList.value = listOf(
-            "Encrypted Backup #12 - 2026-07-08 18:42 (Automatic)",
-            "Encrypted Backup #11 - 2026-07-05 12:15 (Manual)"
-        )
-        performLocalDbBackup()
-
+        // No mock backup history is injected on startup. The history list is built only
+        // from real local/Drive backup events recorded during this session and persisted.
         viewModelScope.launch {
             prefs.isPinSet.collect { isSet ->
                 if (isSet) {
@@ -303,28 +296,54 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        val primary = savedPrimaryPin.value
-        val decoy = savedDecoyPin.value
-
-        if (input == primary) {
-            // Unlock REAL vault
-            _isUnlocked.value = true
-            _isDecoyUnlocked.value = false
-            _activePin.value = input
-            _failedAttempts.value = 0
-            _calcDisplay.value = "0"
-            _calcExpression.value = ""
-        } else if (decoy != null && input == decoy) {
-            // Unlock DECOY vault
-            _isUnlocked.value = true
-            _isDecoyUnlocked.value = true
-            _activePin.value = input
-            _failedAttempts.value = 0
-            _calcDisplay.value = "0"
-            _calcExpression.value = ""
-        } else {
-            // Wrong PIN or Normal Calculator evaluation
+        // If there's a pending binary expression, this "=" is a math evaluation, not an
+        // unlock attempt. Only treat the input as a candidate PIN when no operator is staged.
+        val expr = _calcExpression.value
+        if (expr.isNotEmpty()) {
             evaluateMath(input)
+            return
+        }
+
+        val primaryHash = savedPrimaryPin.value
+        val decoyHash = savedDecoyPin.value
+
+        // PINs are stored as PBKDF2 hashes; verification is CPU-bound (~tens of ms) so we
+        // run it off the UI thread to keep the calculator responsive.
+        viewModelScope.launch(Dispatchers.Default) {
+            val primaryMatch = primaryHash != null && SecurityManager.verifyPin(input, primaryHash)
+            val decoyMatch = decoyHash != null && SecurityManager.verifyPin(input, decoyHash)
+            withContext(Dispatchers.Main) {
+                when {
+                    primaryMatch -> {
+                        _isUnlocked.value = true
+                        _isDecoyUnlocked.value = false
+                        _activePin.value = input
+                        _failedAttempts.value = 0
+                        _calcDisplay.value = "0"
+                        _calcExpression.value = ""
+                    }
+                    decoyMatch -> {
+                        _isUnlocked.value = true
+                        _isDecoyUnlocked.value = true
+                        _activePin.value = input
+                        _failedAttempts.value = 0
+                        _calcDisplay.value = "0"
+                        _calcExpression.value = ""
+                    }
+                    else -> {
+                        // Not a valid PIN. If the input is a valid number, evaluate it as
+                        // a plain calculator entry; otherwise track as a failed attempt.
+                        if (input.toDoubleOrNull() != null || input.all { it.isDigit() || it == '.' }) {
+                            evaluateMath(input)
+                        } else if (input.length >= 4) {
+                            _failedAttempts.value += 1
+                            if (_failedAttempts.value >= intruderThreshold.value) {
+                                captureIntruderSelfie(input)
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -388,7 +407,11 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun evaluateMath(input: String) {
         val expr = _calcExpression.value
-        if (expr.isEmpty()) return
+        if (expr.isEmpty()) {
+            // No staged operation: just echo the number (plain calculator entry).
+            _calcDisplay.value = input
+            return
+        }
 
         val parts = expr.split(" ")
         if (parts.size < 2) return
@@ -410,14 +433,6 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
         val formattedResult = formatDouble(result)
         viewModelScope.launch {
             repository.insertHistory(CalculationHistory(expression = "$num1 $op $num2", result = formattedResult))
-        }
-
-        // Track failed unlock attempt
-        if (input.length >= 4) {
-            _failedAttempts.value += 1
-            if (_failedAttempts.value >= intruderThreshold.value) {
-                captureIntruderSelfie(input)
-            }
         }
 
         _calcDisplay.value = formattedResult
@@ -624,35 +639,22 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- Security logs (Intruder captures) ---
 
+    /**
+     * Records an intruder attempt. A real front-camera capture is not wired up in this
+     * build (CameraX is not enabled and the CAMERA permission is intentionally omitted to
+     * keep the disguised-launcher surface minimal), so we record the event metadata
+     * (timestamp + attempted PIN) in the security log without fabricating a photo.
+     *
+     * The [IntruderLog.photoPath] is left empty to clearly signal "no photo captured"
+     * rather than storing a misleading placeholder image.
+     */
     private fun captureIntruderSelfie(attemptedPin: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val context = getApplication<Application>()
-            val hiddenDir = File(context.filesDir, "intruder_photos").apply { mkdirs() }
-            val photoFile = File(hiddenDir, "selfie_${System.currentTimeMillis()}.png")
-
-            // Create a gorgeous custom vector canvas drawing/PNG representing the silhouette
-            // of the intruder caught on camera to simulate real biometric security
             try {
-                val bitmap = Bitmap.createBitmap(120, 120, Bitmap.Config.ARGB_8888)
-                val canvas = android.graphics.Canvas(bitmap)
-                val paint = android.graphics.Paint().apply {
-                    color = android.graphics.Color.RED
-                    isAntiAlias = true
-                }
-                // Draw a sleek silhouette circle and body shape
-                canvas.drawColor(android.graphics.Color.DKGRAY)
-                paint.color = android.graphics.Color.WHITE
-                canvas.drawCircle(60f, 40f, 25f, paint)
-                canvas.drawOval(20f, 75f, 100f, 130f, paint)
-
-                FileOutputStream(photoFile).use { out ->
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-                }
-
                 repository.insertLog(
                     IntruderLog(
                         timestamp = System.currentTimeMillis(),
-                        photoPath = photoFile.absolutePath,
+                        photoPath = "",
                         attemptedPin = attemptedPin
                     )
                 )
@@ -784,9 +786,14 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
                             errorMsg = "API Metadata Creation failed: ${createResponse.message()}"
                         }
                     } else {
-                        // Simulated Cloud Upload flow
-                        Thread.sleep(2500) // Simulate secure upload delay
-                        finalLog = "Encrypted Backup #${_backupHistoryList.value.size + 1} - $dateStr (Manual - $sizeStr)"
+                        // No Google Drive account connected: persist a local-only encrypted backup.
+                        // The ZIP was already created above; we simply record it as a local backup
+                        // (no fabricated cloud upload). We copy it into the app's private backup
+                        // folder so the user can restore from it later.
+                        val localBackupDir = File(context.filesDir, "local_backups").apply { mkdirs() }
+                        val dest = File(localBackupDir, "hidex_vault_backup_${System.currentTimeMillis()}.zip")
+                        zipFile!!.copyTo(dest, overwrite = true)
+                        finalLog = "Local Backup #${_backupHistoryList.value.size + 1} - $dateStr (Local - $sizeStr)"
                     }
                 } catch (e: Exception) {
                     errorMsg = "Sync Exception: ${e.localizedMessage}"
@@ -826,6 +833,72 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+            }
+        }
+    }
+
+    /**
+     * Restores the vault from the most recent local backup ZIP found in the app's private
+     * "local_backups" directory. The ZIP contains the Room database plus the hidden vault
+     * files, note attachments and intruder photos, exactly as produced by [syncBackup].
+     *
+     * Returns a human-readable result message so the caller can surface it to the user.
+     * Restoration happens on a background thread; the database connection should be closed
+     * (the app will re-open it) before calling this for a fully consistent restore.
+     */
+    fun restoreFromLatestLocalBackup(onResult: (String) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val context = getApplication<Application>()
+            val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+            val dateStr = formatter.format(Date())
+            try {
+                val localBackupDir = File(context.filesDir, "local_backups")
+                val backups = localBackupDir.listFiles { f -> f.isFile && f.name.endsWith(".zip") }
+                    ?.sortedByDescending { it.lastModified() }
+                if (backups.isNullOrEmpty()) {
+                    withContext(Dispatchers.Main) { onResult("No local backup found to restore.") }
+                    return@launch
+                }
+                val zipFile = backups.first()
+                restoreZipIntoAppData(context, zipFile)
+                val sizeStr = "${(zipFile.length() + 1023) / 1024} KB"
+                val log = "✅ Restored from ${zipFile.name} ($sizeStr) at $dateStr"
+                _backupHistoryList.value = listOf(log) + _backupHistoryList.value
+                withContext(Dispatchers.Main) { onResult("Restore complete. Reloading vault data…") }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                val failLog = "❌ Restore failed at $dateStr: ${e.localizedMessage}"
+                _backupHistoryList.value = listOf(failLog) + _backupHistoryList.value
+                withContext(Dispatchers.Main) { onResult("Restore failed: ${e.localizedMessage}") }
+            }
+        }
+    }
+
+    /**
+     * Extracts the contents of a backup ZIP back into the app's private storage, overwriting
+     * the current database and media directories. The database file is written to its
+     * canonical Room path so it is picked up on the next open.
+     */
+    private fun restoreZipIntoAppData(context: Context, zipFile: File) {
+        val dbName = "hidex_vault_database"
+        java.util.zip.ZipInputStream(java.io.FileInputStream(zipFile)).use { zis ->
+            var entry = zis.nextEntry
+            while (entry != null) {
+                val name = entry.name
+                // Resolve destination based on the entry name.
+                val dest: File = when {
+                    name == dbName || name.startsWith("$dbName-") -> context.getDatabasePath(name)
+                    name.startsWith("hidden_vault_files/") -> File(context.filesDir, name)
+                    name.startsWith("note_attachments/") -> File(context.filesDir, name)
+                    name.startsWith("intruder_photos/") -> File(context.filesDir, name)
+                    else -> File(context.filesDir, name)
+                }
+                dest.parentFile?.mkdirs()
+                if (!entry.isDirectory) {
+                    java.io.FileOutputStream(dest).use { fos -> zis.copyTo(fos) }
+                }
+                zis.closeEntry()
+                entry = zis.nextEntry
             }
         }
     }

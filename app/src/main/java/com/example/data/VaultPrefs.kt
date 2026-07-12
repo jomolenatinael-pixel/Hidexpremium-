@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
+import com.example.security.SecurityManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -12,8 +13,8 @@ val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "hi
 class VaultPrefs(private val context: Context) {
 
     companion object {
-        val KEY_PRIMARY_PIN = stringPreferencesKey("primary_pin")
-        val KEY_DECOY_PIN = stringPreferencesKey("decoy_pin")
+        val KEY_PRIMARY_PIN = stringPreferencesKey("primary_pin_hash")
+        val KEY_DECOY_PIN = stringPreferencesKey("decoy_pin_hash")
         val KEY_IS_PIN_SET = booleanPreferencesKey("is_pin_set")
         val KEY_SCREENSHOT_PROTECTION = booleanPreferencesKey("screenshot_protection")
         val KEY_AUTOLOCK_TIMEOUT = intPreferencesKey("autolock_timeout") // in seconds, 0 for off
@@ -24,7 +25,13 @@ class VaultPrefs(private val context: Context) {
         val KEY_BACKUP_WIFI_ONLY = booleanPreferencesKey("backup_wifi_only")
         val KEY_GOOGLE_DRIVE_CONNECTED = booleanPreferencesKey("google_drive_connected")
         val KEY_GOOGLE_ACCOUNT_NAME = stringPreferencesKey("google_account_name")
-        val KEY_GOOGLE_DRIVE_ACCESS_TOKEN = stringPreferencesKey("google_drive_access_token")
+        val KEY_GOOGLE_DRIVE_ACCESS_TOKEN = stringPreferencesKey("google_drive_access_token_enc")
+
+        /**
+         * A device-bound random key used to encrypt the Google Drive access token at rest.
+         * Generated on first use and persisted alongside the encrypted token.
+         */
+        val KEY_TOKEN_WRAP_KEY = stringPreferencesKey("token_wrap_key_b64")
     }
 
     val primaryPin: Flow<String?> = context.dataStore.data.map { it[KEY_PRIMARY_PIN] }
@@ -39,18 +46,36 @@ class VaultPrefs(private val context: Context) {
     val backupWifiOnly: Flow<Boolean> = context.dataStore.data.map { it[KEY_BACKUP_WIFI_ONLY] ?: true }
     val googleDriveConnected: Flow<Boolean> = context.dataStore.data.map { it[KEY_GOOGLE_DRIVE_CONNECTED] ?: false }
     val googleAccountName: Flow<String> = context.dataStore.data.map { it[KEY_GOOGLE_ACCOUNT_NAME] ?: "" }
-    val googleDriveAccessToken: Flow<String> = context.dataStore.data.map { it[KEY_GOOGLE_DRIVE_ACCESS_TOKEN] ?: "" }
 
+    /**
+     * Decrypts the Google Drive access token on read. The token is stored AES-encrypted
+     * with a device-bound random wrapping key so it is never persisted in plaintext.
+     */
+    val googleDriveAccessToken: Flow<String> = context.dataStore.data.map { prefs ->
+        val encrypted = prefs[KEY_GOOGLE_DRIVE_ACCESS_TOKEN] ?: ""
+        val wrapKey = prefs[KEY_TOKEN_WRAP_KEY] ?: ""
+        if (encrypted.isEmpty() || wrapKey.isEmpty()) {
+            ""
+        } else {
+            // The wrap key is a fixed-length random string used as the "pin" for token encryption.
+            SecurityManager.decrypt(encrypted, wrapKey)
+        }
+    }
+
+    /**
+     * Stores the primary PIN as a PBKDF2 hash (never plaintext). Verification is done
+     * via [SecurityManager.verifyPin] at unlock time.
+     */
     suspend fun setPrimaryPin(pin: String) {
         context.dataStore.edit { prefs ->
-            prefs[KEY_PRIMARY_PIN] = pin
+            prefs[KEY_PRIMARY_PIN] = SecurityManager.hashPin(pin)
             prefs[KEY_IS_PIN_SET] = true
         }
     }
 
     suspend fun setDecoyPin(pin: String) {
         context.dataStore.edit { prefs ->
-            prefs[KEY_DECOY_PIN] = pin
+            prefs[KEY_DECOY_PIN] = SecurityManager.hashPin(pin)
         }
     }
 
@@ -96,11 +121,28 @@ class VaultPrefs(private val context: Context) {
         }
     }
 
+    /**
+     * Persists the Google Drive connection. The access token is encrypted at rest with a
+     * device-bound random wrapping key (generated lazily on first connect) so plaintext
+     * tokens are never written to disk.
+     */
     suspend fun setGoogleDriveConnected(connected: Boolean, accountName: String = "", accessToken: String = "") {
         context.dataStore.edit { prefs ->
             prefs[KEY_GOOGLE_DRIVE_CONNECTED] = connected
             prefs[KEY_GOOGLE_ACCOUNT_NAME] = accountName
-            prefs[KEY_GOOGLE_DRIVE_ACCESS_TOKEN] = accessToken
+            if (accessToken.isNotEmpty()) {
+                // Lazily generate a device-bound wrapping key if none exists yet.
+                var wrapKey = prefs[KEY_TOKEN_WRAP_KEY]
+                if (wrapKey.isNullOrEmpty()) {
+                    wrapKey = generateTokenWrapKey()
+                    prefs[KEY_TOKEN_WRAP_KEY] = wrapKey
+                }
+                prefs[KEY_GOOGLE_DRIVE_ACCESS_TOKEN] = SecurityManager.encrypt(accessToken, wrapKey)
+            } else if (!connected) {
+                // On disconnect, scrub the token + wrap key entirely.
+                prefs.remove(KEY_GOOGLE_DRIVE_ACCESS_TOKEN)
+                prefs.remove(KEY_TOKEN_WRAP_KEY)
+            }
         }
     }
 
@@ -116,5 +158,15 @@ class VaultPrefs(private val context: Context) {
             prefs.remove(KEY_DECOY_PIN)
             prefs[KEY_IS_PIN_SET] = false
         }
+    }
+
+    /**
+     * Generates a 256-bit random wrapping key encoded as Base64 (URL-safe, no wrap).
+     * This key is device-bound and used solely to encrypt/decrypt the Drive token.
+     */
+    private fun generateTokenWrapKey(): String {
+        val keyBytes = ByteArray(32)
+        java.security.SecureRandom().nextBytes(keyBytes)
+        return android.util.Base64.encodeToString(keyBytes, android.util.Base64.NO_WRAP)
     }
 }

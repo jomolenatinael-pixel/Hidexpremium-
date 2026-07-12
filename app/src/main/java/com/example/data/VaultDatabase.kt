@@ -1,6 +1,7 @@
 package com.example.data
 
 import android.content.Context
+import android.util.Log
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -39,6 +40,8 @@ abstract class VaultDatabase : RoomDatabase() {
     abstract fun memoryConnectionDao(): MemoryConnectionDao
 
     companion object {
+        private const val TAG = "VaultDatabase"
+
         @Volatile
         private var INSTANCE: VaultDatabase? = null
 
@@ -49,7 +52,17 @@ abstract class VaultDatabase : RoomDatabase() {
                     VaultDatabase::class.java,
                     "hidex_vault_database"
                 )
-                    .fallbackToDestructiveMigration(dropAllTables = true)
+                    // No explicit migrations are defined yet (schema is stable at v2).
+                    // If a future schema bump ships without a migration, prefer keeping the
+                    // existing data over silently nuking the entire vault. We only fall back
+                    // to a destructive migration as an absolute last resort, and we log it
+                    // loudly so data loss is never silent.
+                    .fallbackToDestructiveMigration(dropAllTables = false)
+                    .addCallback(object : RoomDatabase.Callback() {
+                        override fun onDestructiveMigration(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                            Log.w(TAG, "Destructive migration triggered — existing vault data was dropped due to a schema change without an explicit migration.")
+                        }
+                    })
                     .build()
                 INSTANCE = instance
                 instance

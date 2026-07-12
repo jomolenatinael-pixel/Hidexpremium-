@@ -1,19 +1,28 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  HideX Vault Pro data extraction rules.
+
+  Cloud backup and device-to-device transfer are both intentionally disabled for
+  all sensitive data. The vault contains encrypted user content, PIN hashes and
+  the encrypted Google Drive token; none of these should ever be extracted by the
+  system backup/transfer machinery. The app provides its own encrypted Google
+  Drive backup feature instead.
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <exclude domain="database" path="." />
+        <exclude domain="file" path="hidden_vault_files/" />
+        <exclude domain="file" path="note_attachments/" />
+        <exclude domain="file" path="intruder_photos/" />
+        <exclude domain="file" path="local_backups/" />
+        <exclude domain="sharedpref" path="." />
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <exclude domain="database" path="." />
+        <exclude domain="file" path="hidden_vault_files/" />
+        <exclude domain="file" path="note_attachments/" />
+        <exclude domain="file" path="intruder_photos/" />
+        <exclude domain="file" path="local_backups/" />
+        <exclude domain="sharedpref" path="." />
     </device-transfer>
-    -->
 </data-extraction-rules>

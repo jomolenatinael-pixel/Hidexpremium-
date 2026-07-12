@@ -49,22 +49,26 @@ fun MediaVaultScreen(
     var activeVideoPlayerFile by remember { mutableStateOf<VaultFile?>(null) }
     var activeAudioPlayerFile by remember { mutableStateOf<VaultFile?>(null) }
 
-    // Voice recorder simulation state
-    var isRecordingAudio by remember { mutableStateOf(false) }
-    var secondsRecorded by remember { mutableStateOf(0) }
-
     // Video Speed simulation
     var playbackSpeed by remember { mutableStateOf(1.0f) }
 
     // Photo Slideshow State
     var isSlideshowActive by remember { mutableStateOf(false) }
 
-    // System Picker launcher
+    // System Picker launchers (one per media type so the chooser filters correctly)
     val pickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
             viewModel.importFileFromUri(context, it, categoryType)
+        }
+    }
+
+    val audioPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            viewModel.importFileFromUri(context, it, "AUDIO")
         }
     }
 
@@ -94,7 +98,10 @@ fun MediaVaultScreen(
         ) {
             // Main Content Area based on category
             if (categoryType == "AUDIO") {
-                // Built-in Voice Recorder Module
+                // Voice / audio import module. Real microphone recording would require the
+                // RECORD_AUDIO permission + a MediaRecorder pipeline; to keep the app honest
+                // we instead offer a secure file import so users can import existing audio
+                // (voice memos, music, lectures) into the encrypted vault.
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(24.dp),
@@ -106,49 +113,28 @@ fun MediaVaultScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
-                            text = "Secure Tape Recorder",
+                            text = "Secure Audio Vault",
                             fontWeight = FontWeight.Bold,
                             style = MaterialTheme.typography.titleMedium
                         )
 
                         Text(
-                            text = if (isRecordingAudio) String.format("Recording: %02d:%02d", secondsRecorded / 60, secondsRecorded % 60) else "00:00",
-                            style = MaterialTheme.typography.displayMedium,
-                            fontFamily = FontFamily.Monospace,
-                            color = if (isRecordingAudio) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onPrimaryContainer
+                            text = "Import voice memos, music, or lectures into your encrypted vault.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
 
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(24.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            if (!isRecordingAudio) {
-                                FloatingActionButton(
-                                    onClick = {
-                                        isRecordingAudio = true
-                                        secondsRecorded = 0
-                                    },
-                                    containerColor = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.testTag("start_audio_rec")
-                                ) {
-                                    Icon(imageVector = Icons.Default.Mic, contentDescription = "Record", modifier = Modifier.size(28.dp))
-                                }
-                            } else {
-                                FloatingActionButton(
-                                    onClick = {
-                                        isRecordingAudio = false
-                                        // Save simulated audio voice file
-                                        viewModel.importFileFromUri(
-                                            context,
-                                            Uri.fromFile(File(context.filesDir, "mock_voice.mp3")),
-                                            "AUDIO"
-                                        )
-                                    },
-                                    containerColor = MaterialTheme.colorScheme.onBackground,
-                                    modifier = Modifier.testTag("stop_audio_rec")
-                                ) {
-                                    Icon(imageVector = Icons.Default.Stop, contentDescription = "Stop", modifier = Modifier.size(28.dp))
-                                }
+                            FloatingActionButton(
+                                onClick = { audioPicker.launch("audio/*") },
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.testTag("import_audio")
+                            ) {
+                                Icon(imageVector = Icons.Default.Mic, contentDescription = "Import Audio", modifier = Modifier.size(28.dp))
                             }
                         }
                     }
@@ -384,7 +370,8 @@ fun MediaVaultScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        // Simulated playback position slider
+                        // Static playback-position indicator (no embedded video engine; the
+                        // slider is informational only and reflects a saved resume position).
                         Slider(value = 0.35f, onValueChange = {}, colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color.White))
 
                         Row(

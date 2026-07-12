@@ -260,9 +260,9 @@ fun SubjectsTab(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f))
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Simulated Secure PDF Viewer", fontWeight = FontWeight.Bold)
+                        Text("PDF Study Tools", fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text("Everything remains encrypted. Offline document access is granted for maximum concentration.", style = MaterialTheme.typography.bodyMedium)
+                        Text("Bookmarks, highlights, and AI concept explanations for your document. Content remains encrypted at rest.", style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }
@@ -443,7 +443,7 @@ fun SubjectsTab(
                             Spacer(modifier = Modifier.width(16.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(pdf.title, fontWeight = FontWeight.Bold)
-                                Text("Click to open simulated secure reader", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("Tap to open study tools (bookmarks, highlights, AI explain)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             IconButton(onClick = { viewModel.deleteStudyPdf(pdf) }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
@@ -486,7 +486,7 @@ fun SubjectsTab(
                             value = pdfPath,
                             onValueChange = { pdfPath = it },
                             placeholder = { Text("e.g. chemistry_module_1.pdf") },
-                            label = { Text("Simulated Path / File Name") },
+                            label = { Text("File Name / Path") },
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -620,9 +620,21 @@ fun FlashcardsTab(
                                 val subjId = selectedSubjectFilter?.id ?: subjects.first().id
                                 val prompt = "Generate exactly 3 study Q&As (format question: [text] answer: [text]) for high school/college course on: $subjName"
                                 val rawResult = viewModel.callGeminiApi(prompt)
-                                // Parse simulated structure or generate some fallback cards
-                                viewModel.addFlashcard(subjId, "What is the key core concept of $subjName?", "The fundamental pillars of study, structured elegantly.")
-                                viewModel.addFlashcard(subjId, "Important revision query on $subjName?", "Always keep practice-focused notes for maximum memory retention.")
+                                // Parse the AI response. Expected format: "question: ... answer: ..."
+                                // repeated per line. If parsing yields cards, insert them; otherwise
+                                // insert a single honest placeholder so the user knows to add real cards.
+                                val parsedCards = parseAiFlashcards(rawResult)
+                                if (parsedCards.isNotEmpty()) {
+                                    parsedCards.forEach { (q, a) ->
+                                        viewModel.addFlashcard(subjId, q, a)
+                                    }
+                                } else {
+                                    viewModel.addFlashcard(
+                                        subjId,
+                                        "Define a key concept of $subjName",
+                                        "Add your own answer here — AI generation returned no parseable cards."
+                                    )
+                                }
                                 isGeneratingAiCards = false
                             }
                         }, enabled = !isGeneratingAiCards) {
@@ -1013,6 +1025,25 @@ data class QuizQuestion(
     val correctAnswerIndex: Int
 )
 
+/**
+ * Parses an AI-generated flashcard response into (question, answer) pairs.
+ * Expected format per card: "question: <text> answer: <text>"
+ * Handles multi-line responses and is tolerant of minor formatting variations.
+ * Returns an empty list if no parseable cards are found.
+ */
+fun parseAiFlashcards(rawResponse: String): List<Pair<String, String>> {
+    val cards = mutableListOf<Pair<String, String>>()
+    val qPattern = Regex("""question:\s*(.+?)\s*answer:\s*(.+)""", RegexOption.IGNORE_CASE)
+    qPattern.findAll(rawResponse).forEach { match ->
+        val q = match.groupValues[1].trim()
+        val a = match.groupValues[2].trim()
+        if (q.isNotEmpty() && a.isNotEmpty()) {
+            cards.add(q to a)
+        }
+    }
+    return cards
+}
+
 fun getPracticeQuizForSubject(subjectName: String): List<QuizQuestion> {
     return listOf(
         QuizQuestion("In $subjectName, what is the best practice method for long-term retention?", listOf("Spaced Repetition", "Highlighting entire books", "Re-reading notes continuously", "No-revisions"), 0),
@@ -1028,7 +1059,10 @@ fun PlannerTab(
     viewModel: VaultViewModel
 ) {
     var plannerTitle by remember { mutableStateOf("") }
-    var plannerDate by remember { mutableStateOf("2026-07-10") }
+    var plannerDate by remember {
+        val fmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+        mutableStateOf(fmt.format(java.util.Date()))
+    }
     var plannerSubjectId by remember { mutableStateOf(subjects.firstOrNull()?.id ?: 0L) }
     var showAddPlannerDialog by remember { mutableStateOf(false) }
 
